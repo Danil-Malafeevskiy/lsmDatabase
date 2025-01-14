@@ -1,0 +1,82 @@
+components_manager:
+    task_processors:                  # Task processor is an executor for coroutine tasks
+        main-task-processor:          # Make a task processor for CPU-bound coroutine tasks.
+            worker_threads: 20         # Process tasks in 4 threads.
+ 
+        fs-task-processor:            # Make a separate task processor for filesystem bound tasks.
+            worker_threads: 20
+
+        lsm-task-processor:
+            worker_threads: 10
+ 
+    default_task_processor: main-task-processor  # Task processor in which components start.
+ 
+    components:                       # Configuring components that were registered via component_list
+        server:
+            listener:                 # configuring the main listening socket...
+                port: 8081            # ...to listen on this port and...
+                task_processor: main-task-processor    # ...process incoming requests on this task processor.
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: info
+                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+ 
+        crud-lsm-database-handler:             # Finally! Our handler.
+            path: /crud-lsm-database                  # Registering handler by URL '/hello'.
+            method: GET,POST,PUT,DELETE              # It will only reply to GET (HEAD) and POST requests.
+            task_processor: main-task-processor  # Run it on CPU bound task processor
+        
+        vote-handler:
+            path: /vote
+            method: GET,POST
+            task_processor: main-task-processor
+
+        heart-beat-handler:
+            path: /heartbeat
+            method: GET,POST
+            task_processor: main-task-processor
+
+        dns-client:
+            load-enabled: true
+            cache-max-reply-ttl: 60s
+            cache-failure-ttl: 5s
+            cache-size-per-way: 128
+            cache-ways: 16
+            network-timeout: 500ms
+            network-attempts: 2
+            hosts-file-path: "/etc/hosts"
+            hosts-file-update-interval: 3000s
+            fs-task-processor: fs-task-processor
+
+        http-client:
+            pool-statistics-disable: false
+            thread-name-prefix: http-client
+            threads: 2
+            fs-task-processor: fs-task-processor
+            destination-metrics-auto-max-size: 100
+            user-agent: common_component_list sample
+            testsuite-enabled: false
+            testsuite-allowed-url-prefixes: ['http://localhost:8080/', 'http://localhost:8081/', "http://localhost:8082/", 'http://localhost:8083/']
+        
+        LSMStorage:
+            load-enabled: true
+            peers: ["http://localhost:8080/"]
+            nodeId: 2
+            peerNodeIds: [1]
+            dataPath: "data2"
+            lsm-task-processor: lsm-task-processor
+            wait-time: 15000
+            socket: "http://localhost:8081/"
+
+        add-node-handler:
+            path: /add-node
+            method: GET,POST
+            task_processor: main-task-processor
+
+        remove-node-handler:
+            path: /remove-node
+            method: GET,POST
+            task_processor: main-task-processor
